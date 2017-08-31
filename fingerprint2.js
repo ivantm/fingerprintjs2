@@ -16,13 +16,7 @@
 * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-(function (name, context, definition) {
-  "use strict";
-  if (typeof define === "function" && define.amd) { define(definition); }
-  else if (typeof module !== "undefined" && module.exports) { module.exports = definition(); }
-  else if (context.exports) { context.exports = definition(); }
-  else { context[name] = definition(); }
-})("Fingerprint2", this, function() {
+(function() {
   "use strict";
   var Fingerprint2 = function(options) {
 
@@ -31,15 +25,11 @@
     }
 
     var defaultOptions = {
-      swfContainerId: "fingerprintjs2",
-      swfPath: "flash/compiled/FontList.swf",
       detectScreenOrientation: true,
       sortPluginsFor: [/palemoon/i],
       userDefinedFonts: []
     };
     this.options = this.extend(options, defaultOptions);
-    this.nativeForEach = Array.prototype.forEach;
-    this.nativeMap = Array.prototype.map;
   };
   Fingerprint2.prototype = {
     extend: function(source, target) {
@@ -91,7 +81,7 @@
       keys = this.customEntropyFunction(keys);
       this.fontsKey(keys, function(newKeys){
         var values = [];
-        that.each(newKeys.data, function(pair) {
+        newKeys.data.forEach(function(pair) {
           var value = pair.value;
           if (typeof pair.value.join !== "undefined") {
             value = pair.value.join(";");
@@ -280,30 +270,7 @@
       return keys;
     },
     fontsKey: function(keys, done) {
-      if (this.options.excludeJsFonts) {
-        return this.flashFontsKey(keys, done);
-      }
       return this.jsFontsKey(keys, done);
-    },
-    // flash fonts (will increase fingerprinting time 20X to ~ 130-150ms)
-    flashFontsKey: function(keys, done) {
-      if(this.options.excludeFlashFonts) {
-        return done(keys);
-      }
-      // we do flash if swfobject is loaded
-      if(!this.hasSwfObjectLoaded()){
-        return done(keys);
-      }
-      if(!this.hasMinFlashInstalled()){
-        return done(keys);
-      }
-      if(typeof this.options.swfPath === "undefined"){
-        return done(keys);
-      }
-      this.loadSwfAndDetectFonts(function(fonts){
-        keys.addPreprocessedComponent({key: "swf_fonts", value: fonts.join(";")});
-        done(keys);
-      });
     },
     // kudos to http://www.lalit.org/lab/javascript-css-font-detect/
     jsFontsKey: function(keys, done) {
@@ -508,8 +475,8 @@
           return 0;
         });
       }
-      return this.map(plugins, function (p) {
-        var mimeTypes = this.map(p, function(mt){
+      return plugins.map(function (p) {
+        var mimeTypes = Array.prototype.map.call(p, function(mt){
           return [mt.type, mt.suffixes].join("~");
         }).join(",");
         return [p.name, p.description, mimeTypes].join("::");
@@ -543,7 +510,7 @@
           "rmocx.RealPlayer G2 Control.1"
         ];
         // starting to detect plugins in IE
-        result = this.map(names, function(name) {
+        result = names.map(function(name) {
           try {
             new ActiveXObject(name); // eslint-disable-no-new
             return name;
@@ -923,7 +890,7 @@
           return true;
         } else if(oscpu.indexOf("mac") >= 0 && os !== "Mac" && os !== "iOS"){
           return true;
-        } else if((oscpu.indexOf("win") === -1 && oscpu.indexOf("linux") === -1 && oscpu.indexOf("mac") === -1) !== (os == "Other")){
+        } else if((oscpu.indexOf("win") === -1 && oscpu.indexOf("linux") === -1 && oscpu.indexOf("mac") === -1) !== (os === "Other")){
           return true;
         }
       }
@@ -935,7 +902,7 @@
         return true;
       } else if((platform.indexOf("mac") >= 0 || platform.indexOf("ipad") >= 0 || platform.indexOf("ipod") >= 0 || platform.indexOf("iphone") >= 0) && os !== "Mac" && os !== "iOS"){
         return true;
-      } else if((platform.indexOf("win") === -1 && platform.indexOf("linux") === -1 && platform.indexOf("mac") === -1) !== (os == "Other")){
+      } else if((platform.indexOf("win") === -1 && platform.indexOf("linux") === -1 && platform.indexOf("mac") === -1) !== (os === "Other")){
         return true;
       }
 
@@ -1025,28 +992,6 @@
       }
       return false;
     },
-    hasSwfObjectLoaded: function(){
-      return typeof window.swfobject !== "undefined";
-    },
-    hasMinFlashInstalled: function () {
-      return swfobject.hasFlashPlayerVersion("9.0.0");
-    },
-    addFlashDivNode: function() {
-      var node = document.createElement("div");
-      node.setAttribute("id", this.options.swfContainerId);
-      document.body.appendChild(node);
-    },
-    loadSwfAndDetectFonts: function(done) {
-      var hiddenCallback = "___fp_swf_loaded";
-      window[hiddenCallback] = function(fonts) {
-        done(fonts);
-      };
-      var id = this.options.swfContainerId;
-      this.addFlashDivNode();
-      var flashvars = { onReady: hiddenCallback};
-      var flashparams = { allowScriptAccess: "always", menu: "false" };
-      swfobject.embedSWF(this.options.swfPath, id, "1", "1", "9.0.0", false, flashvars, flashparams, {});
-    },
     getWebglCanvas: function() {
       var canvas = document.createElement("canvas");
       var gl = null;
@@ -1055,36 +1000,6 @@
       } catch(e) { /* squelch */ }
       if (!gl) { gl = null; }
       return gl;
-    },
-    each: function (obj, iterator, context) {
-      if (obj === null) {
-        return;
-      }
-      if (this.nativeForEach && obj.forEach === this.nativeForEach) {
-        obj.forEach(iterator, context);
-      } else if (obj.length === +obj.length) {
-        for (var i = 0, l = obj.length; i < l; i++) {
-          if (iterator.call(context, obj[i], i, obj) === {}) { return; }
-        }
-      } else {
-        for (var key in obj) {
-          if (obj.hasOwnProperty(key)) {
-            if (iterator.call(context, obj[key], key, obj) === {}) { return; }
-          }
-        }
-      }
-    },
-
-    map: function(obj, iterator, context) {
-      var results = [];
-      // Not using strict equality so that this acts as a
-      // shortcut to checking for `null` and `undefined`.
-      if (obj == null) { return results; }
-      if (this.nativeMap && obj.map === this.nativeMap) { return obj.map(iterator, context); }
-      this.each(obj, function(value, index, list) {
-        results[results.length] = iterator.call(context, value, index, list);
-      });
-      return results;
     },
 
     /// MurmurHash3 related functions
@@ -1284,5 +1199,5 @@
     }
   };
   Fingerprint2.VERSION = "1.5.1";
-  return Fingerprint2;
-});
+  window.Fingerprint2 = Fingerprint2;
+})();
